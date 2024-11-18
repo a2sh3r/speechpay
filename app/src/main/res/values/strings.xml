@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">VoicePaymentApp</string>
+    <string name="button_text">Записать команду</string>
+</resources>
