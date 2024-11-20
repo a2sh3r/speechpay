@@ -32,6 +32,7 @@ import android.telephony.SmsMessage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 
 class MainActivity : ComponentActivity() {
 
@@ -108,7 +109,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionListener = object : RecognitionListener {
@@ -187,21 +187,29 @@ class MainActivity : ComponentActivity() {
             Log.d("SpeechPay", "Распознанная команда: $command")
             val lowerCaseCommand = command.lowercase()
 
-            val regex = "(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}\\s?\\d{3}[-]?\\d{2}[-]?\\d{2}) (сумму|сумма) (\\d+)".toRegex()
+            val regex = "(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}\\s?\\d{3}[-]?\\d{2}[-]?\\d{2}) (сумму|сумма) (\\d+)|код \\s?(\\d{5})".toRegex()
 
             val matchResult = regex.find(lowerCaseCommand)
 
             if (matchResult != null) {
-                val phoneNumberText = matchResult.groupValues[3].trim()
-                val amount = matchResult.groupValues[5].trim()
+                if (matchResult.groupValues[3].isNotEmpty() && matchResult.groupValues[5].isNotEmpty()) {
+                    val phoneNumberText = matchResult.groupValues[3].trim()
+                    val amount = matchResult.groupValues[5].trim()
 
-                Log.d("SpeechPay", "Найден номер: $phoneNumberText, сумма: $amount")
+                    Log.d("SpeechPay", "Найден номер: $phoneNumberText, сумма: $amount")
 
-                val phoneNumber = convertPhoneTextToNumber(phoneNumberText)
-                if (phoneNumber != null) {
-                    sendSms(phoneNumber, amount)
-                } else {
-                    Toast.makeText(this, "Неверный номер телефона", Toast.LENGTH_SHORT).show()
+                    val phoneNumber = convertPhoneTextToNumber(phoneNumberText)
+                    if (phoneNumber != null) {
+                        sendSms(phoneNumber, amount)
+                    } else {
+                        Toast.makeText(this, "Неверный номер телефона", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                else if (matchResult.groupValues[6].isNotEmpty()) {
+                    val code = matchResult.groupValues[6].trim()
+
+                    Log.d("SpeechPay", "Найден код: $code")
+                    sendCodeToSms(code)
                 }
             } else {
                 Log.d("SpeechPay", "Не удалось распознать команду.")
@@ -211,32 +219,38 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun convertPhoneTextToNumber(phoneText: String): String? {
-        return phoneText.replace(Regex("[^\\d]"), "").takeIf { it.length == 11 }
+        return phoneText.replace(Regex("[^0-9]"), "")
     }
 
     private fun sendSms(phoneNumber: String, amount: String) {
-        val cleanedText = phoneNumber.replace(Regex("[^0-9]"), "")
-        val sms = "Перевод $cleanedText $amount"
+        val sms = "Перевод $amount на номер $phoneNumber"
+        val smsManager = SmsManager.getDefault()
+        smsManager.sendTextMessage(phoneNumber, null, sms, null, null)
+        Toast.makeText(this, "SMS отправлено", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendCodeToSms(code: String) {
+        val sms = code
         val smsManager = SmsManager.getDefault()
         smsManager.sendTextMessage("900", null, sms, null, null)
-
-        Toast.makeText(this, "SMS отправлено на $phoneNumber", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "SMS с кодом отправлено", Toast.LENGTH_SHORT).show()
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) {
-            Toast.makeText(this, "Разрешение получено", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Разрешение не получено", Toast.LENGTH_SHORT).show()
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                Log.d("SpeechPay", "Разрешение получено")
+            } else {
+                Log.d("SpeechPay", "Разрешение не получено")
+                Toast.makeText(this, "Необходимо разрешение для отправки SMS и записи аудио", Toast.LENGTH_SHORT).show()
+            }
         }
-    }
 
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(smsReceiver)
     }
 }
-
 
 @Composable
 fun MainScreen(
@@ -255,57 +269,67 @@ fun MainScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Button(
-            onClick = {
-                if (isVoiceCommandListening) {
-                    onStopListening()
-                } else {
-                    onStartListening()
-                }
-            }
-        ) {
-            Text(if (isVoiceCommandListening) "Остановить" else "Начать")
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text("Распознанный текст:", style = MaterialTheme.typography.titleMedium)
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Box(
+            onClick = { if (isVoiceCommandListening) onStopListening() else onStartListening() },
             modifier = Modifier
+                .padding(bottom = 16.dp)
                 .fillMaxWidth()
-                .height(200.dp)
-                .padding(16.dp)
-                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface)
+                .height(56.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                text = recognizedText,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.Center)
+                text = if (isVoiceCommandListening) "Остановить прослушивание" else "Начать прослушивание",
+                style = MaterialTheme.typography.titleMedium
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Текст из SMS:", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Распознанный текст:",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Box(
+        Text(
+            text = recognizedText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.Black,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
+                .background(Color.White)
+                .border(1.dp, MaterialTheme.colorScheme.onSurface)
                 .padding(16.dp)
-                .border(2.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface)
-        ) {
-            Text(
-                text = messageText,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Полученное сообщение:",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = messageText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.Black,
+            modifier = Modifier
+                .background(Color.White)
+                .border(1.dp, MaterialTheme.colorScheme.onSurface)
+                .padding(16.dp)
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DefaultPreview() {
+    SpeechPayTheme {
+        MainScreen(
+            isVoiceCommandListening = false,
+            onStartListening = {},
+            onStopListening = {},
+            recognizedText = "Пример распознанного текста",
+            messageText = "Пример сообщения от 900"
+        )
     }
 }
