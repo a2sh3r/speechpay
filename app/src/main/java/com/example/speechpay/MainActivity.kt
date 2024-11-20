@@ -223,9 +223,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendSms(phoneNumber: String, amount: String) {
-        val sms = "Перевод $amount на номер $phoneNumber"
+        val cleanedText = phoneNumber.replace(Regex("[^0-9]"), "")
+        val sms = "Перевод $cleanedText $amount"
         val smsManager = SmsManager.getDefault()
-        smsManager.sendTextMessage(phoneNumber, null, sms, null, null)
+        smsManager.sendTextMessage("900", null, sms, null, null)
         Toast.makeText(this, "SMS отправлено", Toast.LENGTH_SHORT).show()
     }
 
