@@ -27,12 +27,12 @@ import android.util.Log
 import android.content.IntentFilter
 import android.os.Build
 import androidx.annotation.RequiresApi
-import android.provider.Telephony
 import android.telephony.SmsMessage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 
 class MainActivity : ComponentActivity() {
 
@@ -48,20 +48,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-        }
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
-        }
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.READ_SMS)
+        if (!hasAllPermissions()) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.SEND_SMS,
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.RECEIVE_SMS,
+                    Manifest.permission.READ_SMS
+                ),
+                PERMISSION_REQUEST_CODE
+            )
         }
 
         smsReceiver = object : BroadcastReceiver() {
@@ -74,13 +71,14 @@ class MainActivity : ComponentActivity() {
                         val body = message.displayMessageBody
 
                         if (sender != null && sender == "900") {
-                            messageText = body
+                            messageText += body
                             Log.d("SpeechPay", "Получено сообщение от 900: $body")
                         }
                     }
                 }
             }
         }
+
 
         val intentFilter = IntentFilter("android.provider.Telephony.SMS_RECEIVED")
         intentFilter.priority = 999
@@ -136,7 +134,7 @@ class MainActivity : ComponentActivity() {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Тайм-аут речи"
                     else -> "Неизвестная ошибка"
                 }
-                isVoiceCommandListening = false // Сброс состояния
+                isVoiceCommandListening = false
                 Toast.makeText(this@MainActivity, "Ошибка распознавания: $errorMessage", Toast.LENGTH_SHORT).show()
                 Log.e("SpeechPay", "Speech recognition error: $errorMessage")
             }
@@ -194,7 +192,7 @@ class MainActivity : ComponentActivity() {
             Log.d("SpeechPay", "Распознанная команда: $command")
             val lowerCaseCommand = command.lowercase()
 
-            val regex = "(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}\\s?\\d{3}[-]?\\d{2}[-]?\\d{2}) (сумму|сумма) (\\d+)|код \\s?(\\d{5})".toRegex()
+            val regex = "(переведи|перевести).* (на номер|по номеру).* (8\\s?\\d{3}\\s?\\d{3}[-]?\\d{2}[-]?\\d{2}) (сумму|сумма|суммы).* (\\d+).*|(код|кот)\\s?(\\d{5}|\\d\\s?\\d\\s?\\d\\s?\\d\\s?\\d)".toRegex()
 
             val matchResult = regex.find(lowerCaseCommand)
 
@@ -211,8 +209,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         Toast.makeText(this, "Неверный номер телефона", Toast.LENGTH_SHORT).show()
                     }
-                }
-                else if (matchResult.groupValues[6].isNotEmpty()) {
+                } else if (matchResult.groupValues[6].isNotEmpty()) {
                     val code = matchResult.groupValues[6].trim()
 
                     Log.d("SpeechPay", "Найден код: $code")
@@ -224,6 +221,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+
 
     private fun convertPhoneTextToNumber(phoneText: String): String? {
         return phoneText.replace(Regex("[^0-9]"), "")
@@ -238,21 +237,48 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendCodeToSms(code: String) {
-        val sms = code
+        val sms = code.replace(" ", "")
         val smsManager = SmsManager.getDefault()
         smsManager.sendTextMessage("900", null, sms, null, null)
         Toast.makeText(this, "SMS с кодом отправлено", Toast.LENGTH_SHORT).show()
+        messageText = ""
     }
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                Log.d("SpeechPay", "Разрешение получено")
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        return ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            val deniedPermissions = permissions.zip(grantResults.toTypedArray())
+                .filter { it.second != PackageManager.PERMISSION_GRANTED }
+                .map { it.first }
+
+            if (deniedPermissions.isNotEmpty()) {
+                Toast.makeText(
+                    this,
+                    "Необходимо предоставить все разрешения для корректной работы приложения: ${deniedPermissions.joinToString(", ")}",
+                    Toast.LENGTH_LONG
+                ).show()
             } else {
-                Log.d("SpeechPay", "Разрешение не получено")
-                Toast.makeText(this, "Необходимо разрешение для отправки SMS и записи аудио", Toast.LENGTH_SHORT).show()
+                Log.d("SpeechPay", "Все разрешения предоставлены")
             }
         }
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -306,6 +332,7 @@ fun MainScreen(
                 .background(Color.White)
                 .border(1.dp, MaterialTheme.colorScheme.onSurface)
                 .padding(16.dp)
+                .fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -324,9 +351,16 @@ fun MainScreen(
                 .background(Color.White)
                 .border(1.dp, MaterialTheme.colorScheme.onSurface)
                 .padding(16.dp)
+                .fillMaxWidth()
+                .heightIn(min = 100.dp),
+            maxLines = Int.MAX_VALUE,
+            overflow = TextOverflow.Visible
         )
     }
 }
+
+
+
 
 @Preview(showBackground = true)
 @Composable
