@@ -5,7 +5,6 @@ class CommandProcessor {
     fun processCommand(command: String?): CommandResult? {
         val lowerCaseCommand = command?.lowercase() ?: return null
 
-        // Обновленное регулярное выражение
         val regex = "(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}[- ]?\\d{3}[- ]?\\d{2}[- ]?\\d{2}) (сумму|сумма|суммы|сумо|суммо|суму|сума)?\\s*(\\d+(\\.\\d{1,3})?\\s*(тыс|млн|миллион|миллиона|миллионов)?)?|код\\s?(\\d+(?:\\s?\\d+)*)?".toRegex()
         val matchResult = regex.find(lowerCaseCommand)
 
@@ -24,7 +23,7 @@ class CommandProcessor {
     }
 
     private fun cleanAmountString(amount: String): String {
-        var totalAmount = 0L // Используем Long для целых чисел
+        var totalAmount = 0L
         val parts = amount.split(" ")
 
         for (part in parts) {
@@ -35,19 +34,16 @@ class CommandProcessor {
                 part.contains("тыс") || part.contains("тысяч") -> {
                     totalAmount += part.replace("тыс", "").replace("тысяч", "").trim().toLongOrNull()?.times(1_000) ?: 0L
                 }
-                // Обработка целых чисел с точками
                 part.matches(Regex("\\d+(\\.\\d+)?")) -> {
-                    // Удаляем точки и преобразуем в Long
                     totalAmount += part.replace(".", "").toLongOrNull() ?: 0L
                 }
                 else -> {
-                    // Обработка целых чисел
                     totalAmount += part.toLongOrNull() ?: 0L
                 }
             }
         }
 
-        return totalAmount.toString() // Возвращаем строку без лишних нулей
+        return totalAmount.toString()
     }
 
     fun convertPhoneTextToNumber(phoneText: String): String {

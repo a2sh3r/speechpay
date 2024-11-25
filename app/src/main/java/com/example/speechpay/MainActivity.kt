@@ -154,7 +154,6 @@ class MainActivity : ComponentActivity() {
         speechRecognizer.setRecognitionListener(recognitionListener)
     }
 
-    // Function to check if all required permissions are granted
     private fun hasAllPermissions(): Boolean {
         return ContextCompat.checkSelfPermission(
             this, Manifest.permission.SEND_SMS
