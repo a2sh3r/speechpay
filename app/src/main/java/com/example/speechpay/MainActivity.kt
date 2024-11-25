@@ -136,13 +136,19 @@ class MainActivity : ComponentActivity() {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Тайм-аут речи"
                     else -> "Неизвестная ошибка"
                 }
+                isVoiceCommandListening = false // Сброс состояния
                 Toast.makeText(this@MainActivity, "Ошибка распознавания: $errorMessage", Toast.LENGTH_SHORT).show()
                 Log.e("SpeechPay", "Speech recognition error: $errorMessage")
             }
 
+
             override fun onEvent(p0: Int, p1: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onEndOfSpeech() {}
+            override fun onEndOfSpeech() {
+                isVoiceCommandListening = false
+                Log.d("SpeechPay", "End of speech")
+            }
+
 
             override fun onPartialResults(partialResults: Bundle?) {
                 val partialMatches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -181,6 +187,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Неизвестная ошибка при остановке прослушивания", Toast.LENGTH_SHORT).show()
         }
     }
+
 
     private fun processCommand(command: String?) {
         if (command != null) {
