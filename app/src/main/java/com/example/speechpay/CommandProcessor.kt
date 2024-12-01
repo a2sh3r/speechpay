@@ -5,7 +5,7 @@ class CommandProcessor {
     fun processCommand(command: String?): CommandResult? {
         val lowerCaseCommand = command?.lowercase() ?: return null
 
-        val regex = "(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}[- ]?\\d{3}[- ]?\\d{2}[- ]?\\d{2}) (сумму|сумма|суммы|сумо|суммо|суму|сума)?\\s*(\\d+(\\.\\d{1,3})?\\s*(тыс|млн|миллион|миллиона|миллионов)?)?|код\\s?(\\d+(?:\\s?\\d+)*)?".toRegex()
+        val regex = ".*?(переведи|перевести) (на номер|по номеру) (8\\s?\\d{3}[- ]?\\d{3}[- ]?\\d{2}[- ]?\\d{2}) (сумму|сумма|суммы|сумо|суммо|суму|сума)?\\s*(\\d+(\\.\\d{1,3})?\\s*(тыс|млн|миллион|миллиона|миллионов)?)?|код\\s?(\\d+(?:\\s?\\d+)*)?".toRegex()
         val matchResult = regex.find(lowerCaseCommand)
 
         return if (matchResult != null) {
